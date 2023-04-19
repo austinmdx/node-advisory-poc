@@ -2,7 +2,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import { Inter } from 'next/font/google'
 import styles from '@/styles/Home.module.css'
-import { Button } from '@chakra-ui/react'
+import { Button, Text, UnorderedList, ListItem, Link, Box, Divider } from '@chakra-ui/react'
 import Header from '@/components/header'
 
 export default function Home() {
@@ -16,6 +16,19 @@ export default function Home() {
       </Head>
       <main className="App">
         <Header></Header>
+
+        <Box px="32px">
+          <Text fontSize='4xl' mb="4">Popular Packages</Text>
+
+          <Divider mb="4" />
+
+          <UnorderedList>
+            <ListItem listStyleType="none" mb="1"><Link href="/package/express-generate">Lorem ipsum dolor sit amet</Link></ListItem>
+            <ListItem listStyleType="none" mb="1"><Link href="/package/express-generate">Consectetur adipiscing elit</Link></ListItem>
+            <ListItem listStyleType="none" mb="1"><Link href="/package/express-generate">Integer molestie lorem at massa</Link></ListItem>
+            <ListItem listStyleType="none" mb="1"><Link href="/package/express-generate">Facilisis in pretium nisl aliquet</Link></ListItem>
+          </UnorderedList>
+        </Box>
       </main>
     </>
   )
