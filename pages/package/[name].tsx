@@ -36,6 +36,10 @@ const Package = ({ item }: { item: any }) => {
     router.push(`/package/${query}`, undefined, { shallow: false });
   }
 
+  useEffect(() => {
+    console.log('ITEM ', item);
+  }, [item]);
+
   return <>
     <Head>
       <title>{item.name}</title>
@@ -201,9 +205,6 @@ async function fetchPackageData(name: string): Promise<any> {
     })
 
     const latestVersion = packageInfo['dist-tags'].latest;
-    const versionData = packageInfo.versions[latestVersion];
-    const description = versionData.description;
-    const repository_url = versionData.repository?.url || '';
     const readme = packageInfo.readme;
 
     // Insert package data into Supabase
@@ -218,67 +219,89 @@ async function fetchPackageData(name: string): Promise<any> {
     }
     const pkgId = (pkgData[0] as any).id;
 
+    let versionsToInsert: any[] = [];
     await Promise.all(versions.map(async (version) => {
-      let { error: insertError, data: versionData } = await supabaseServer
-        .from('versions')
-        .insert([{
-          package_id: pkgId,
-          version: version.version,
-          description: version.description,
-          license: version.license,
-          release_date: packageInfo.time[version.version],
-        }])
-        .select();
+      const versionToInsert = {
+        package_id: pkgId,
+        version: version.version,
+        description: version.description || null,
+        license: version.license || null,
+        release_date: packageInfo.time[version.version],
+      };
+      versionsToInsert.push(versionToInsert);
 
-      if (insertError || !versionData || versionData.length === 0) {
-        console.error('Error inserting version data:', insertError);
-        throw ('Error inserting version data: ' + insertError);
+    }));
+
+    let { error: versionsInsertionError, data: insertedVersionsData } = await supabaseServer
+      .from('versions')
+      .insert(versionsToInsert)
+      .select();
+
+    if (versionsInsertionError || !insertedVersionsData || insertedVersionsData.length === 0) {
+      console.error('Error inserting version data:', versionsInsertionError);
+      throw (versionsInsertionError);
+    }
+
+    //console.log('Inserted versions:', insertedVersionsData);
+    const dependenciesToInsert: any[] = [];
+    const keywordsToInsert: any[] = [];
+
+    await Promise.all(versions.map(async (version: any) => {
+
+      let versionId: number | undefined;
+      try {
+        versionId = (insertedVersionsData!.find((versionData: any) => versionData.version === version.version) as any).id;
+        console.log
+      } catch (e) {
+        return;
       }
-      let vData = versionData[0];
 
       if (version.version === latestVersion) {
-        const { error: readmesError } = await supabaseServer
+        const { error: readmeInsertError } = await supabaseServer
           .from('readmes')
-          .insert([{ version_id: vData.id, content: readme }]);
-
-        if (readmesError) {
-          console.error('Error inserting readme:', readmesError);
+          .insert([{ version_id: versionId, content: readme }]);
+        if (readmeInsertError) {
+          console.error('Error inserting readme:', readmeInsertError);
+          throw (readmeInsertError);
         }
       }
 
       if (version.dependencies) {
-        Object.keys(version.dependencies).forEach(async (dependency) => {
-          const { error: depError } = await supabaseServer
-            .from('dependencies')
-            .insert([{ version_id: vData.id, name: dependency, version_range: version.dependencies[dependency], is_dev: false }]);
-          if (depError) {
-            console.error('Error inserting dependencies:', depError);
-          }
-        })
+        Object.entries(version.dependencies).forEach((entry) => {
+          dependenciesToInsert.push({ version_id: versionId, name: entry[0], version_range: entry[1], is_dev: false });
+        });
       }
 
       if (version.devDependencies) {
-        Object.keys(version.devDependencies).forEach(async (dependency) => {
-          const { error: depError } = await supabaseServer
-            .from('dependencies')
-            .insert([{ version_id: vData.id, name: dependency, version_range: version.devDependencies[dependency], is_dev: true }]);
-          if (depError) {
-            console.error('Error inserting devDependencies:', depError, version.devDependencies[dependency]);
-          }
-        })
+        Object.entries(version.devDependencies).forEach((entry) => {
+          dependenciesToInsert.push({ version_id: versionId, name: entry[0], version_range: entry[1], is_dev: true });
+        });
       }
 
       if (version.keywords) {
-        version.keywords.forEach(async (keyword: string) => {
-          const { error: keywordError } = await supabaseServer
-            .from('keywords')
-            .insert([{ version_id: vData.id, value: keyword }]);
-          if (keywordError) {
-            console.error('Error inserting keywords:', keywordError);
-          }
-        })
+        version.keywords.forEach((keyword: any) => {
+          keywordsToInsert.push({ version_id: versionId, value: keyword });
+        });
       }
     }));
+
+    if (dependenciesToInsert && dependenciesToInsert.length > 0) {
+      const { error: depError } = await supabaseServer
+        .from('dependencies')
+        .insert(dependenciesToInsert);
+      if (depError) {
+        console.error('Error inserting dependencies:', depError);
+      }
+    }
+
+    if (keywordsToInsert && keywordsToInsert.length > 0) {
+      const { error: keywordError } = await supabaseServer
+          .from('keywords')
+          .insert(keywordsToInsert);
+        if (keywordError) {
+          console.error('Error inserting keywords:', keywordError);
+        }
+    }
 
     ({ data: data } = await _fetchPackages(name));
   }
