@@ -9,7 +9,7 @@ const NavBar = (props: any) => {
 
   return (
     <NavBarContainer {...props}>
-      <Search></Search>
+      <Search onChange={props.onSearchChange} onSubmit={props.onSearchSubmit}></Search>
       <MenuToggle toggle={toggle} isOpen={isOpen} />
       <MenuLinks isOpen={isOpen} />
     </NavBarContainer>

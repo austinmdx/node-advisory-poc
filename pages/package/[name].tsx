@@ -5,8 +5,8 @@ import { supabaseServer } from '@/supabaseServer'
 import axios from 'axios'
 import { useEffect, useState } from 'react'
 import { ReactMarkdown } from 'react-markdown/lib/react-markdown'
-import remarkGfm from 'remark-gfm'
 import ChakraUIRenderer from 'chakra-ui-markdown-renderer';
+import Head from 'next/head'
 
 const chakraMDRendererTheme = {
   p: (props: any) => {
@@ -21,7 +21,6 @@ const chakraMDRendererTheme = {
 
 const Package = ({ item }: { item: any }) => {
   const router = useRouter()
-  const { name } = router.query
   const [clientSide, setClientSide] = useState(false);
 
   const currentVersion = item && item.versions && item.versions.length > 0 ? item.versions[0] : null;
@@ -30,89 +29,98 @@ const Package = ({ item }: { item: any }) => {
     setClientSide(true);
   }, []);
 
-  console.log('Item ', item);
-
   const currentDependencies = currentVersion && currentVersion.dependencies ? currentVersion.dependencies.filter((d: any) => !d.is_dev) : [];
   const currentDevDependencies = currentVersion && currentVersion.dependencies ? currentVersion.dependencies.filter((d: any) => d.is_dev) : [];
 
+  function onSearchSubmit(query: string) {
+    router.push(`/package/${query}`, undefined, { shallow: false });
+  }
+
   return <>
-    <Header />
+    <Head>
+      <title>{item.name}</title>
+      <meta name="description" content={item.name + ' NPM package advisory'} />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <link rel="icon" href="/favicon.ico" />
+    </Head>
+    <main className="App">
+      <Header onSearchSubmit={onSearchSubmit} />
 
-    <Box px="32px">
-      <Text fontSize='5xl' mb="5" fontWeight="bold">{item?.name} <Text fontSize="lg" display="inline" as="span">v{currentVersion?.version}</Text></Text>
-      <Text fontSize='1xl' mb="5">{currentVersion.description}</Text>
-      <Text fontSize='1xl' mb="5">
-        Last updated on: {clientSide && (new Date(currentVersion.release_date)).toLocaleDateString()}
-        {currentVersion.license && <>&nbsp;|&nbsp;License: {currentVersion.license}</>}
-        &nbsp;|&nbsp;<Link color="primary.500" href={`https://www.npmjs.com/package/${item.name}`} target="_blank" rel="noreferrer">View on NPM</Link>
-      </Text>
+      <Box px="32px">
+        <Text fontSize='5xl' mb="5" fontWeight="bold">{item?.name} <Text fontSize="lg" display="inline" as="span">v{currentVersion?.version}</Text></Text>
+        <Text fontSize='1xl' mb="5">{currentVersion?.description}</Text>
+        <Text fontSize='1xl' mb="5">
+          Last updated on: {clientSide && currentVersion && (new Date(currentVersion.release_date)).toLocaleDateString()}
+          {currentVersion?.license && <>&nbsp;|&nbsp;License: {currentVersion.license}</>}
+          &nbsp;|&nbsp;<Link color="primary.500" href={`https://www.npmjs.com/package/${item.name}`} target="_blank" rel="noreferrer">View on NPM</Link>
+        </Text>
 
-      <Box border="1px solid" borderColor="primary.500" p="2" mb="4">
-        <Text fontSize='1xl'> &gt; npm install {item?.name}</Text>
-      </Box>
+        <Box border="1px solid" borderColor="primary.500" p="2" mb="4">
+          <Text fontSize='1xl'> &gt; npm install {item?.name}</Text>
+        </Box>
 
-      <TableContainer>
-        <Table variant='striped' colorScheme='teal'>
-          <TableCaption>This information is updated daily</TableCaption>
-          <Thead>
-            <Tr>
-              <Th>Version</Th>
-              <Th>Release Date</Th>
-              <Th>Vulnerabilities</Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {item?.versions?.map((version: any) => {
-              return <Tr key={version.id}>
-                <Td>{version.version}</Td>
-                <Td>{clientSide && (new Date(version.release_date)).toLocaleDateString()}</Td>
-                <Td isNumeric>{version.audit_infos.length}</Td>
+        <TableContainer>
+          <Table variant='striped' colorScheme='teal'>
+            <TableCaption>This information is updated daily</TableCaption>
+            <Thead>
+              <Tr>
+                <Th>Version</Th>
+                <Th>Release Date</Th>
+                <Th>Vulnerabilities</Th>
               </Tr>
-            })}
-          </Tbody>
-        </Table>
-      </TableContainer>
+            </Thead>
+            <Tbody>
+              {item?.versions?.map((version: any) => {
+                return <Tr key={version.id}>
+                  <Td>{version.version}</Td>
+                  <Td>{clientSide && (new Date(version.release_date)).toLocaleDateString()}</Td>
+                  <Td isNumeric>{version.audit_infos.length}</Td>
+                </Tr>
+              })}
+            </Tbody>
+          </Table>
+        </TableContainer>
 
-      <Card mb="4">
-        <CardHeader><Text fontSize='4xl' fontWeight="bold">Readme</Text></CardHeader>
-        <CardBody>
-          {
-            currentVersion.readmes.length > 0 && <ReactMarkdown
-              components={ChakraUIRenderer(chakraMDRendererTheme)}
-              children={currentVersion.readmes[0].content}
-              skipHtml
-            />
+        <Card mb="4">
+          <CardHeader><Text fontSize='4xl' fontWeight="bold">Readme</Text></CardHeader>
+          <CardBody>
+            {
+              currentVersion?.readmes.length > 0 && <ReactMarkdown
+                components={ChakraUIRenderer(chakraMDRendererTheme)}
+                skipHtml
+              >{currentVersion.readmes[0].content}</ReactMarkdown>
 
-          }
-        </CardBody>
-      </Card>
+            }
+          </CardBody>
+        </Card>
 
-      <Card mb="4">
-        <CardHeader><Text fontSize='4xl' fontWeight="bold">Dependencies</Text></CardHeader>
-        <CardBody>
-          {
-            currentDependencies.map((dependency: any) => {
-              return <Tag colorScheme="primary" mr="2">{dependency.name}</Tag>
-            })
-          }
+        <Box display={['block', 'block', 'flex']} gap="4">
+          <Card mb="4" flex="1">
+            <CardHeader><Text fontSize='4xl' fontWeight="bold">Dependencies</Text></CardHeader>
+            <CardBody>
+              {
+                currentDependencies.map((dependency: any) => {
+                  return <Tag colorScheme="primary" mr="2" mb="5" key={dependency.id}>{dependency.name}</Tag>
+                })
+              }
 
-        </CardBody>
-      </Card>
+            </CardBody>
+          </Card>
 
-      <Card mb="4">
-        <CardHeader><Text fontSize='4xl' fontWeight="bold">DevDependencies</Text></CardHeader>
-        <CardBody>
-          {
-            currentDevDependencies.map((dependency: any) => {
-              return <Tag colorScheme="primary" mr="2">{dependency.name}</Tag>
-            })
-          }
+          <Card mb="4" flex="1">
+            <CardHeader><Text fontSize='4xl' fontWeight="bold">DevDependencies</Text></CardHeader>
+            <CardBody>
+              {
+                currentDevDependencies.map((dependency: any) => {
+                  return <Tag colorScheme="primary" mr="2" mb="5" key={dependency.id}>{dependency.name}</Tag>
+                })
+              }
 
-        </CardBody>
-      </Card>
-    </Box>
-
-
+            </CardBody>
+          </Card>
+        </Box>
+      </Box>
+    </main>
   </>
 }
 
@@ -160,8 +168,7 @@ async function fetchPackageNames(): Promise<string[]> {
   return data.map((packageObj) => packageObj.name);
 }
 
-async function fetchPackageData(name: string): Promise<any> {
-
+async function _fetchPackages(name: string) {
   let { data, error } = await supabaseServer
     .from('packages')
     .select('*, versions(*, dependencies(*), keywords(*), audit_infos(*), readmes(*))')
@@ -171,6 +178,13 @@ async function fetchPackageData(name: string): Promise<any> {
       ascending: false,
     })
     .single();
+
+  return { data, error };
+}
+
+async function fetchPackageData(name: string): Promise<any> {
+
+  let { data, error } = await _fetchPackages(name);
 
   if (!data) {
 
@@ -266,7 +280,7 @@ async function fetchPackageData(name: string): Promise<any> {
       }
     }));
 
-    data = { name, description, repository_url };
+    ({ data: data } = await _fetchPackages(name));
   }
 
   return data;
